@@ -1,0 +1,66 @@
+vamos a desarrollar una aplicación para el manejo de proyectos y seguimiento de tiempos de cada persona que trabaje en cada proyecto.
+
+El propósito general de la aplicación es el manejo de del personal y de los proyectos de una empresa de servicios de ingeniería. de tal forma de conocer en que proyecto esta trabajando cada empleado, el tiempo disponible de la mano de obra, liquidar los tiempos usados en cada proyecto, liquidar los tiempos semanales quincenales y mensuales de cada empleado, programas los tiempos de cada empleado asignándoles uno o varios proyectos.
+
+la aplicación deberá tener diferentes módulos:
+
+. modulo de usuarios
+. modulo de proyectos
+
+dentro del modulo de usuarios se podrá:
+
+. crear usuarios
+. modificar usuarios
+. validar usuario
+. listar usuarios
+
+dentro del modulo de proyecto se podrá:
+
+. crear proyecto
+. asignar usuarios a proyectos
+. registrar inicio de actividad de usuario individual a un proyecto especifico
+. registrar fin de actividad de usuario individual a un proyecto especifico
+. finalizar proyecto
+. consultar usuarios activos por proyecto
+. planear que usuarios deberán trabajar en determinadas fechas en proyectos específicos
+. consultar horas hombre totales por proyecto.
+. consultar horas gastadas de usuarios específicos en un rango de tiempo (día, semana, mes)
+. consultar las asignaciones de usuarios por fechas y o proyectos
+
+cada usuario tendrá como mínimo los siguientes campos:
+
+. id
+. nombre
+. apellido
+. teléfono
+. e-mail
+. password
+
+existirán diferentes tipos de roles dentro de la aplicación, por el momento se crearan:
+
+. Administrador: Tiene acceso a toda la información de modo lectura y escritura.
+. Líder: podrá crear proyectos y asignar usuarios y horarios a dichos proyectos. También podrá finalizar proyectos, revisar los tiempos gastados por proyectos o por usuarios.
+. Operario: Podrá registrar el inicio o fin de actividad en un proyecto especifico, Consultar los tiempos gastados solo de el mismo tanto en día, semana, mes, como en un proyecto especifico
+
+se tendrá inicialmente una interfaz en forma de una aplicación web y posteriormente se agregara aplicación móvil en Android y ios.
+
+al entrar a la aplicación web lo primero será hacer login. 
+
+si el usuario es de tipo operario, tendrá la opción principalmente de seleccionar un proyecto para el que este matriculado he iniciar actividades en dicho proyecto. desde ese momento se empezara a registrar tiempo de ese usuario para ese proyecto el cual se vera reflejado en un contador que vera el usuario uno para el total del proyecto y uno para el día. desde ese momento el usuario tendrá la opción de finalizar la actividad para ese proyecto o cambiarse a otro. en todo momento el usuario tendrá la opción de consultar los tiempos de el mismo tanto por proyectos como por día, semana o mes. también podrá actualizar la información de su propio usuario incluyendo el password.
+
+Si el usuario es tipo Lider además de lo anterior también podrá: 
+. crear proyectos
+. asignar usuarios a proyectos
+. cerrar proyectos
+. consultar programación de todo el plantel, por usuario o por proyecto
+. liquidar tiempos por proyecto 
+. liquidar tiempos por usuario.
+
+Si el usuario es administrador además de lo que piede hacer el operario y el líder puede:
+. crear usuarios
+. borrar usuarios
+. modificar usuarios  
+
+la visualización deberá ser optimizada tanto para verla en dispositivos móviles como para verla en PC.
+
+

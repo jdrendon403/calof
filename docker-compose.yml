@@ -1,0 +1,97 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sgtp}
+      POSTGRES_USER: ${POSTGRES_USER:-sgtp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sgtp_secret}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sgtp} -d ${POSTGRES_DB:-sgtp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-sgtp}:${POSTGRES_PASSWORD:-sgtp_secret}@db:5432/${POSTGRES_DB:-sgtp}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: ${DEBUG:-1}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://web:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - web
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A config worker -l info
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-sgtp}:${POSTGRES_PASSWORD:-sgtp_secret}@db:5432/${POSTGRES_DB:-sgtp}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - web
+      - redis
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A config beat -l info --schedule=/tmp/celerybeat-schedule
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-sgtp}:${POSTGRES_PASSWORD:-sgtp_secret}@db:5432/${POSTGRES_DB:-sgtp}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - celery_worker
+      - redis
+
+volumes:
+  postgres_data:
