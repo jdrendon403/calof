@@ -15,14 +15,16 @@ calof/
 │   ├── projects/     # App: modelos Project, Assignment
 │   ├── timetracker/  # App: modelo TimeEntry, tareas Celery
 │   ├── reports/      # App: endpoint de liquidación
+│   ├── cuadrillas/   # App: modelo Cuadrilla, servicios de trabajo colectivo
 │   ├── manage.py
 │   └── requirements.txt
 ├── frontend/         # React SPA
 │   ├── src/
-│   │   ├── api/      # client.js (axios + interceptors)
-│   │   ├── context/  # AuthContext, TimeContext
-│   │   ├── pages/    # LoginView, DashboardOperario, DashboardLider, AdminPanel
-│   │   └── components/ # Layout (nav + header)
+│   │   ├── api/        # client.js (axios + interceptors)
+│   │   ├── context/    # AuthContext, TimeContext
+│   │   ├── pages/      # LoginView, DashboardOperario, DashboardLider, AdminPanel
+│   │   ├── components/ # Layout, CuadrillaManager
+│   │   └── utils/      # time.js (minutesToHHMM)
 │   ├── package.json
 │   └── vite.config.js
 └── docker-compose.yml
@@ -41,7 +43,7 @@ calof/
 | Tareas async | Celery + django-celery-beat | 5.3 / 2.5 |
 | Docs API | drf-spectacular (Redoc) | 0.27 |
 | Frontend framework | React | 18.2 |
-| Build tool | Vite | 5.0 |
+| Build tool | Vite | 5.0 (usePolling=true para Docker en Windows) |
 | Routing | React Router DOM | 6.21 |
 | HTTP client | Axios | 1.6 |
 | Estilos | Tailwind CSS | 3.4 |
@@ -65,7 +67,7 @@ Project
   - fecha_inicio, fecha_fin
   - usuarios_asignados (M2M → Usuario via Assignment)
 
-Assignment  [tabla intermedia]
+Assignment  [tabla intermedia Project ↔ Usuario]
   - usuario_id → Usuario
   - proyecto_id → Project
   - fecha_programada
@@ -77,7 +79,16 @@ TimeEntry
   - hora_inicio (DateTimeField)
   - hora_fin (DateTimeField, null=True)  ← null = entrada activa
   - cierre_automatico (BooleanField)
+  - cuadrilla_id → Cuadrilla (FK, null=True)  ← null = entrada individual
   - property: duracion_minutos (calculada si hora_fin existe)
+
+Cuadrilla
+  - id, nombre
+  - proyecto_id → Project (FK)
+  - lider_id → Usuario (FK, rol LIDER o ADMIN)
+  - miembros (M2M → Usuario)
+  - activa (BooleanField, default=True)
+  - fecha_creacion (DateTimeField, auto)
 ```
 
 ---
@@ -90,9 +101,9 @@ POST   /api/auth/login/          → { access, refresh, user, rol }
 POST   /api/auth/refresh/
 GET    /api/auth/me/
 
-# Usuarios (Admin only)
-GET|POST        /api/users/
-GET|PATCH|DELETE /api/users/{id}/
+# Usuarios
+GET|POST         /api/users/              ← GET: Lider/Admin | POST: Admin only
+GET|PATCH|DELETE /api/users/{id}/         ← Admin only
 
 # Proyectos
 GET|POST        /api/projects/
@@ -101,14 +112,25 @@ POST   /api/projects/{id}/assign-users/
 POST   /api/projects/{id}/unassign-user/
 GET    /api/projects/assignments/         ← Lider/Admin only
 
-# Tiempos
+# Tiempos (individuales)
 POST   /api/time/start/          → crea TimeEntry con hora_fin=null
-PATCH  /api/time/stop/           → cierra entrada activa
+PATCH  /api/time/stop/           → cierra entrada activa del usuario
 GET    /api/time/current/        → entrada activa del usuario
 GET    /api/time/                → lista (Operario: propia; Lider/Admin: todas)
 
+# Cuadrillas
+GET|POST        /api/cuadrillas/
+GET|PATCH       /api/cuadrillas/{id}/
+POST   /api/cuadrillas/{id}/add-members/
+POST   /api/cuadrillas/{id}/remove-member/
+POST   /api/cuadrillas/{id}/start/    → crea TimeEntry para todos los miembros
+POST   /api/cuadrillas/{id}/stop/     → cierra entradas activas de la cuadrilla
+GET    /api/cuadrillas/{id}/current/  → estado activo de la cuadrilla
+
 # Reportes
 GET    /api/reports/settlement/?period=week|month
+       → incluye entradas activas (hora_fin=null) usando now() como cierre temporal
+       → responde: { por_usuario: [{nombre_completo, total_minutos}], por_proyecto: [...] }
 
 # Docs
 GET    /api/docs/                → Redoc
@@ -124,14 +146,29 @@ GET    /admin/                   → Django Admin
 |--------|:--------:|:-----:|:-----:|
 | Ver/registrar sus propios tiempos | ✓ | ✓ | ✓ |
 | Ver tiempos de todos los usuarios | — | ✓ | ✓ |
+| Listar usuarios | — | ✓ | ✓ |
 | CRUD proyectos | — | ✓ | ✓ |
-| Asignar/desasignar usuarios | — | ✓ | ✓ |
+| Asignar/desasignar usuarios a proyectos | — | ✓ | ✓ |
 | Ver reportes de liquidación | — | ✓ | ✓ |
+| Crear/gestionar cuadrillas | — | ✓ | ✓ |
+| Iniciar/detener cuadrilla | miembro | lider | ✓ |
 | CRUD usuarios | — | — | ✓ |
 
 **Permission classes del backend:** `IsAdminUser`, `IsProjectLeader`, `IsProjectLeaderOrReadOnly`
 
 **Operario** solo ve proyectos a los que está asignado (filtrado en queryset).
+
+---
+
+## Módulo de Cuadrillas
+
+- Un **Líder** crea una cuadrilla, asigna un proyecto y matricula operarios.
+- Cualquier **miembro o el líder** puede iniciar/detener el trabajo de toda la cuadrilla.
+- Al iniciar: se crea un `TimeEntry` para cada miembro con el **mismo** `hora_inicio` (transacción atómica).
+- Miembros con sesión individual activa se **omiten** (no fallan); la API reporta `skipped_user_ids`.
+- Al detener: cierra todos los `TimeEntry` activos con `cuadrilla_id` de esa cuadrilla.
+- El cierre automático de Celery (17:00 y 00:00) aplica igual a entradas de cuadrilla.
+- Lógica de negocio aislada en `cuadrillas/services.py` (`cuadrilla_start`, `cuadrilla_stop`, `cuadrilla_current_status`).
 
 ---
 
@@ -147,14 +184,16 @@ GET    /admin/                   → Django Admin
 
 ## Tareas programadas (Celery Beat)
 
-Timezone configurado en `America/Bogota`.
+Timezone: `America/Bogota`. Los crontabs se definen en **hora local** (Celery respeta `CELERY_TIMEZONE`).
 
-| Tarea | Hora | Descripción |
-|-------|------|-------------|
-| `close-sessions-5pm` | 17:00 | Cierra todas las entradas activas |
-| `close-sessions-midnight` | 00:00 | Cierre de seguridad nocturno |
+| Tarea | Hora Bogotá | Hora UTC | Descripción |
+|-------|------------|----------|-------------|
+| `close-sessions-5pm` | 17:00 | 22:00 | Cierra todas las entradas activas |
+| `close-sessions-midnight` | 00:00 | 05:00 | Cierre de seguridad nocturno |
 
-Lógica: busca `TimeEntry` donde `hora_fin=null` → asigna `hora_fin=at_time` + `cierre_automatico=True`.
+Lógica: busca `TimeEntry` donde `hora_fin=null` → asigna `hora_fin=timezone.now()` + `cierre_automatico=True`.
+
+**Importante:** los crontabs usan la hora local Bogotá directamente (`hour=17`, `hour=0`). No convertir a UTC manualmente.
 
 ---
 
@@ -175,19 +214,52 @@ Lógica: busca `TimeEntry` donde `hora_fin=null` → asigna `hora_fin=at_time` +
 ## Frontend: state management
 
 **AuthContext**
-- Estado: `user` (objeto con id, username, rol, etc.), `loading`
+- Estado: `user` (objeto con id, username, rol, first_name, last_name, etc.), `loading`
 - Funciones: `login(data)`, `logout()`, `refreshUser()`
 
 **TimeContext**
 - Estado: `activeEntry`, `elapsedSeconds` (incrementa cada 1s con `setInterval`)
 - Funciones: `start(projectId)`, `stop()`, `fetchCurrent()`, `formatElapsed(seconds)`
+- Re-ejecuta `fetchCurrent()` cuando `user` cambia (detecta sesión activa al login)
+
+**Utilidades**
+- `src/utils/time.js` → `minutesToHHMM(minutes)`: convierte minutos a formato `HH:MM`
+
+---
+
+## Frontend: componentes clave
+
+| Componente | Descripción |
+|-----------|-------------|
+| `Layout.jsx` | Header con logo InControl, nav por rol, nombre del usuario, logout |
+| `DashboardOperario.jsx` | Timer individual + sección modo cuadrilla (visible si pertenece a alguna) |
+| `DashboardLider.jsx` | Liquidación, gráfica (polling 30s), proyectos, cuadrillas, registros |
+| `CuadrillaManager.jsx` | CRUD cuadrillas, gestión de miembros (usado dentro de DashboardLider) |
+| `AdminPanel.jsx` | CRUD usuarios |
+
+---
+
+## Reportes: comportamiento
+
+- Incluye entradas **activas** (`hora_fin=null`) usando `now()` como cierre temporal → no se excluyen.
+- Campo `nombre_completo` = `first_name + last_name` con fallback a `username`.
+- La gráfica de barras calcula duración de entradas activas en el frontend: `(Date.now() - hora_inicio) / 60000`.
+- El dashboard del líder hace **polling cada 30 segundos** para refrescar tiempos y liquidación.
 
 ---
 
 ## Comunicación frontend → backend
 
-En desarrollo: Vite proxea `/api` → `http://localhost:8000` (configurado en `vite.config.js`).
+En desarrollo: Vite proxea `/api` → `http://web:8000` (nombre del servicio Docker).
+`vite.config.js` lee `VITE_API_URL` del entorno; fallback a `http://localhost:8000`.
+`usePolling: true` en Vite para detectar cambios de archivos en Docker sobre Windows/WSL2.
+
 En producción: requiere nginx o reverse proxy que enrute `/api` al contenedor Django.
+
+**ALLOWED_HOSTS del backend** debe incluir `web` para que el proxy de Vite funcione:
+```
+ALLOWED_HOSTS=localhost,127.0.0.1,web
+```
 
 ---
 
@@ -200,6 +272,10 @@ En producción: requiere nginx o reverse proxy que enrute `/api` al contenedor D
 | `web` | Dockerfile backend | 8000 | db, redis |
 | `celery_worker` | Dockerfile backend | — | web, redis |
 | `celery_beat` | Dockerfile backend | — | celery_worker, redis |
+| `frontend` | Dockerfile frontend | 3000 | web |
+
+El backend corre con usuario no-root (`appuser`) para evitar el warning de Celery.
+`celery_beat` usa `--schedule=/tmp/celerybeat-schedule` para evitar conflictos de permisos con el volumen montado.
 
 ### Variables de entorno relevantes
 
@@ -209,6 +285,8 @@ SECRET_KEY=change-me-in-production
 REDIS_URL=redis://redis:6379/0
 DEBUG=1
 CORS_ALLOWED_ORIGINS=http://localhost:3000
+ALLOWED_HOSTS=localhost,127.0.0.1,web
+VITE_API_URL=http://web:8000
 ```
 
 ---
@@ -218,6 +296,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 ```bash
 # Con Docker (recomendado)
 docker-compose up --build
+
 # Crear superusuario
 docker-compose exec web python manage.py createsuperuser
 
@@ -234,7 +313,8 @@ cd backend && python manage.py test
 
 | Fase | Estado | Descripción |
 |------|--------|-------------|
-| MVP | ✅ Implementado | Web con gestión de tiempos básica |
+| MVP | ✅ | Web con gestión de tiempos básica |
+| Cuadrillas | ✅ | Trabajo colectivo coordinado por cuadrillas |
 | Fase 2 | Pendiente | Liquidación avanzada + exportar PDF/Excel |
 | Fase 3 | Pendiente | App móvil nativa (Android/iOS) |
 
@@ -242,9 +322,12 @@ cd backend && python manage.py test
 
 ## Convenciones del proyecto
 
-- **Idioma del código:** español para nombres de modelos y campos del dominio de negocio (`hora_inicio`, `cierre_automatico`, `usuarios_asignados`). Inglés para código de infraestructura.
+- **Idioma del código:** español para modelos y campos del dominio (`hora_inicio`, `cierre_automatico`, `usuarios_asignados`, `nombre_completo`). Inglés para infraestructura.
 - **Idioma de la UI:** español (Colombia), `LANGUAGE_CODE = 'es-co'`
-- **Zona horaria:** `America/Bogota` en backend y Celery
+- **Zona horaria:** `America/Bogota` en backend y Celery. Todos los `DateTimeField` se almacenan en UTC.
 - **Colores de UI:** paleta `slate` de Tailwind CSS
-- El campo `hora_fin = null` en `TimeEntry` indica que la sesión está **activa/corriendo**
-- El flag `cierre_automatico = True` identifica entradas cerradas por el sistema (no por el usuario)
+- **Formato de tiempos en UI:** `HH:MM` via `minutesToHHMM()` — nunca mostrar minutos crudos
+- `hora_fin = null` en `TimeEntry` → sesión **activa**
+- `cierre_automatico = True` → entrada cerrada por el sistema
+- `cuadrilla = null` en `TimeEntry` → entrada **individual** (no de cuadrilla)
+- **Git:** repositorio privado `calof` en GitHub. Usuario: Juan David Rendon (jdrendon@gmail.com)
