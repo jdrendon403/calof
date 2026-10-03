@@ -89,10 +89,10 @@ AUTH_USER_MODEL = "users.Usuario"
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 4},
+    },
 ]
 
 # Internationalization
@@ -136,7 +136,24 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Límite de intentos de login (ver users.throttles)
+    "DEFAULT_THROTTLE_RATES": {
+        "login_username": "5/min",
+        "login_ip": "20/min",
+    },
+    # Cadena de proxies: cliente → Cloudflare → cloudflared → nginx → Django.
+    # Con 2, la IP del cliente se toma de X-Forwarded-For y no la de nginx.
+    "NUM_PROXIES": 2,
 }
+
+# Cache — compartida entre workers de gunicorn (la usa el límite de intentos de login)
+if os.environ.get("REDIS_URL"):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": os.environ["REDIS_URL"].rsplit("/", 1)[0] + "/1",
+        }
+    }
 
 # Celery
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")

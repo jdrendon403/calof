@@ -7,7 +7,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Usuario
 from .permissions import IsAdminUser, IsProjectLeader
+from .throttles import LoginIPThrottle, LoginUsernameThrottle
 from .serializers import (
+    ChangePasswordSerializer,
     LoginResponseSerializer,
     UsuarioCreateSerializer,
     UsuarioSerializer,
@@ -28,6 +30,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """JWT login; returns tokens + user + rol."""
 
     permission_classes = [AllowAny]
+    throttle_classes = [LoginUsernameThrottle, LoginIPThrottle]
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -43,6 +46,17 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 def me(request):
     """Current user profile."""
     return Response(UsuarioSerializer(request.user).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """Change the current user's password."""
+    serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+    serializer.is_valid(raise_exception=True)
+    request.user.set_password(serializer.validated_data["new_password"])
+    request.user.save(update_fields=["password"])
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class UsuarioListCreateView(generics.ListCreateAPIView):

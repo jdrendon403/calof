@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/auth/login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/auth/me/", views.me),
+    path("api/auth/change-password/", views.change_password),
     path("api/users/", include("users.urls")),
     path("api/projects/", include("projects.urls")),
     path("api/time/", include("timetracker.urls")),

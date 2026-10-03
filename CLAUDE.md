@@ -97,9 +97,10 @@ Cuadrilla
 
 ```
 # Autenticación
-POST   /api/auth/login/          → { access, refresh, user, rol }
+POST   /api/auth/login/          → { access, refresh, user, rol }  ← máx. 5/min por usuario y 20/min por IP
 POST   /api/auth/refresh/
 GET    /api/auth/me/
+POST   /api/auth/change-password/ → { current_password, new_password } (usuario autenticado)
 
 # Usuarios
 GET|POST         /api/users/              ← GET: Lider/Admin | POST: Admin only

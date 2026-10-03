@@ -68,7 +68,8 @@ export default function AdminPanel() {
       setEditing(null);
       usersApi.list().then(setUsers).catch(console.error);
     } catch (err) {
-      setError(err.response?.data?.username?.[0] || err.response?.data?.detail || "Error al guardar.");
+      const data = err.response?.data;
+      setError(data?.username?.[0] || data?.password?.[0] || data?.detail || "Error al guardar.");
     }
   };
 

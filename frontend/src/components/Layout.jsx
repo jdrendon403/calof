@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/IncontrolLogo.png";
+import ChangePasswordModal from "./ChangePasswordModal";
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -54,6 +57,13 @@ export default function Layout() {
             </span>
             <button
               type="button"
+              onClick={() => setShowChangePassword(true)}
+              className="rounded px-2 py-1 text-sm hover:bg-slate-700"
+            >
+              Cambiar contraseña
+            </button>
+            <button
+              type="button"
               onClick={handleLogout}
               className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500"
             >
@@ -65,6 +75,7 @@ export default function Layout() {
       <main className="mx-auto max-w-6xl px-4 py-6">
         <Outlet />
       </main>
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
     </div>
   );
 }
