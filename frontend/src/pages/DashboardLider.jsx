@@ -111,7 +111,7 @@ export default function DashboardLider() {
               <XAxis dataKey="nombre" />
               <YAxis />
               <Tooltip formatter={(v) => [minutesToHHMM(v), "Tiempo"]} />
-              <Bar dataKey="minutos" fill="#475569" />
+              <Bar dataKey="minutos" fill="#00639B" />
             </BarChart>
           </ResponsiveContainer>
         </div>

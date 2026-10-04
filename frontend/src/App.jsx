@@ -15,10 +15,8 @@ function PrivateRoute({ children, allowedRoles }) {
   return children;
 }
 
+// Todos los roles empiezan en la pestaña Tiempos
 function RoleRedirect() {
-  const { user } = useAuth();
-  if (user?.rol === "ADMIN") return <Navigate to="/admin" replace />;
-  if (user?.rol === "LIDER") return <Navigate to="/lider" replace />;
   return <Navigate to="/operario" replace />;
 }
 

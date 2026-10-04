@@ -206,7 +206,7 @@ Lógica: busca `TimeEntry` donde `hora_fin=null` → asigna `hora_fin=timezone.n
 | `/operario` | DashboardOperario | OPERARIO, LIDER, ADMIN |
 | `/lider` | DashboardLider | LIDER, ADMIN |
 | `/admin` | AdminPanel | ADMIN |
-| `/` | RoleRedirect | redirige según rol |
+| `/` | RoleRedirect | redirige a `/operario` (Tiempos) para todos los roles |
 
 **PrivateRoute:** bloquea acceso sin token; valida rol antes de renderizar.
 
@@ -326,7 +326,7 @@ cd backend && python manage.py test
 - **Idioma del código:** español para modelos y campos del dominio (`hora_inicio`, `cierre_automatico`, `usuarios_asignados`, `nombre_completo`). Inglés para infraestructura.
 - **Idioma de la UI:** español (Colombia), `LANGUAGE_CODE = 'es-co'`
 - **Zona horaria:** `America/Bogota` en backend y Celery. Todos los `DateTimeField` se almacenan en UTC.
-- **Colores de UI:** paleta `slate` de Tailwind CSS
+- **Colores de UI:** identidad InControl (incontrol.com.co). En `tailwind.config.js` la paleta `slate` está redefinida como escala azul marino (`slate-700` = `#39436B`) y hay colores `brand-*` (`primary`, `accent`, `blue` `#00639B`, `text`). Tipografía Montserrat.
 - **Formato de tiempos en UI:** `HH:MM` via `minutesToHHMM()` — nunca mostrar minutos crudos
 - `hora_fin = null` en `TimeEntry` → sesión **activa**
 - `cierre_automatico = True` → entrada cerrada por el sistema

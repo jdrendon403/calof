@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { auth } from "../api/client";
+import logo from "../assets/IncontrolLogo.png";
 
 export default function LoginView() {
   const [username, setUsername] = useState("");
@@ -18,10 +19,7 @@ export default function LoginView() {
     try {
       const data = await auth.login(username, password);
       login(data);
-      const rol = data.rol;
-      if (rol === "ADMIN") navigate("/admin", { replace: true });
-      else if (rol === "LIDER") navigate("/lider", { replace: true });
-      else navigate("/operario", { replace: true });
+      navigate("/operario", { replace: true });
     } catch (err) {
       setError(err.response?.data?.detail || "Usuario o contraseña incorrectos.");
     } finally {
@@ -31,9 +29,10 @@ export default function LoginView() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-      <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-md">
-        <h1 className="mb-6 text-center text-xl font-semibold text-slate-800">
-          SGTP - Iniciar sesión
+      <div className="w-full max-w-sm rounded-lg border-t-4 border-brand-blue bg-white p-6 shadow-md">
+        <img src={logo} alt="InControl" className="mx-auto mb-4 h-24 w-auto" />
+        <h1 className="mb-6 text-center text-lg font-semibold text-slate-700">
+          Gestión de Tiempos y Proyectos
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
