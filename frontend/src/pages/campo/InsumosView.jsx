@@ -7,7 +7,8 @@ import PhotoPicker, { uploadPending } from "../../components/PhotoPicker";
 import StatusBadge from "../../components/StatusBadge";
 import { errorMessage, formatDate, formatDateTime } from "../../utils/format";
 import {
-  AccionLider, Campo, ItemCard, Toolbar, Vacio, btnPrimary, btnSecondary, input, label, useEsLider, useProyectos,
+  AccionLider, Campo, ItemCard, NotaProyectoEnCurso, Toolbar, Vacio, btnPrimary, btnSecondary, input, label, useEsLider,
+  useProyectoPorDefecto, useProyectos,
 } from "./common";
 
 const FILTROS = [
@@ -26,9 +27,7 @@ function SolicitudForm({ onDone, onCancel }) {
   const [error, setError] = useState("");
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  useEffect(() => {
-    if (proyectos.length === 1) setForm((f) => ({ ...f, proyecto: String(proyectos[0].id) }));
-  }, [proyectos]);
+  const enCurso = useProyectoPorDefecto(proyectos, form.proyecto, (proyecto) => setForm((f) => ({ ...f, proyecto })));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -54,6 +53,7 @@ function SolicitudForm({ onDone, onCancel }) {
             <option value="">Seleccione un proyecto</option>
             {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
+          <NotaProyectoEnCurso enCurso={enCurso} valor={form.proyecto} />
         </div>
         <div>
           <label className={label}>¿Para cuándo? (opcional)</label>

@@ -7,7 +7,8 @@ import PhotoPicker, { uploadPending } from "../../components/PhotoPicker";
 import StatusBadge from "../../components/StatusBadge";
 import { errorMessage, formatDateTime } from "../../utils/format";
 import {
-  AccionLider, Campo, ItemCard, Toolbar, Vacio, btnPrimary, btnSecondary, input, label, useEsLider, useProyectos,
+  AccionLider, Campo, ItemCard, NotaProyectoEnCurso, Toolbar, Vacio, btnPrimary, btnSecondary, input, label, useEsLider,
+  useProyectoPorDefecto, useProyectos,
 } from "./common";
 
 export const CATEGORIAS = [
@@ -38,6 +39,7 @@ function NovedadForm({ onDone, onCancel }) {
   const [estado, setEstado] = useState("");
   const [error, setError] = useState("");
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const enCurso = useProyectoPorDefecto(proyectos, form.proyecto, (proyecto) => setForm((f) => ({ ...f, proyecto })));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -73,6 +75,7 @@ function NovedadForm({ onDone, onCancel }) {
             <option value="">Sin proyecto (general)</option>
             {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
+          <NotaProyectoEnCurso enCurso={enCurso} valor={form.proyecto} />
         </div>
       </div>
       <div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { campo } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { useTime } from "../../context/TimeContext";
 import { errorMessage } from "../../utils/format";
 
 export const input = "mt-1 w-full rounded border border-slate-300 px-3 py-2";
@@ -22,6 +23,29 @@ export function useProyectos() {
     campo.proyectos().then(setProyectos).catch(() => {});
   }, []);
   return proyectos;
+}
+
+/**
+ * Proyecto sugerido para un formulario nuevo: el del cronómetro en curso (individual o de cuadrilla)
+ * si el usuario puede reportar en él; si no, el único proyecto disponible. Se aplica con `aplicar(id)`
+ * solo mientras el formulario no tenga proyecto elegido. Devuelve el id del proyecto en curso (o null).
+ */
+export function useProyectoPorDefecto(proyectos, proyectoActual, aplicar, activo = true) {
+  const { activeEntry } = useTime();
+  const enCurso = activeEntry && proyectos.some((p) => p.id === activeEntry.proyecto) ? activeEntry.proyecto : null;
+  useEffect(() => {
+    if (!activo || proyectoActual) return;
+    const id = enCurso ?? (proyectos.length === 1 ? proyectos[0].id : null);
+    if (id) aplicar(String(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proyectos, enCurso, activo]);
+  return enCurso;
+}
+
+/** Nota bajo el selector cuando el proyecto elegido es el del cronómetro en curso. */
+export function NotaProyectoEnCurso({ enCurso, valor }) {
+  if (!enCurso || String(enCurso) !== String(valor)) return null;
+  return <p className="mt-1 text-xs text-green-700">● Proyecto en el que está registrando tiempo ahora.</p>;
 }
 
 /** Encabezado de sección con filtro y botón principal. */

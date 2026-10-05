@@ -6,7 +6,9 @@ import PhotoPicker, { uploadPending } from "../../components/PhotoPicker";
 import SignaturePad from "../../components/SignaturePad";
 import { minutesToHHMM } from "../../utils/time";
 import { errorMessage } from "../../utils/format";
-import { btnPrimary, btnSecondary, input, label, useProyectos } from "./common";
+import {
+  NotaProyectoEnCurso, btnPrimary, btnSecondary, input, label, useProyectoPorDefecto, useProyectos,
+} from "./common";
 
 const hoy = () => {
   const d = new Date();
@@ -46,9 +48,9 @@ export default function InformeForm({ informe, onDone, onCancel }) {
   const [guardadoId, setGuardadoId] = useState(informe?.id || null);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  useEffect(() => {
-    if (!informe && proyectos.length === 1) setForm((f) => ({ ...f, proyecto: String(proyectos[0].id) }));
-  }, [proyectos, informe]);
+  const enCurso = useProyectoPorDefecto(
+    proyectos, form.proyecto, (proyecto) => setForm((f) => ({ ...f, proyecto })), !informe
+  );
 
   // Prellenar personal desde Tiempos al elegir proyecto y fecha
   useEffect(() => {
@@ -120,6 +122,7 @@ export default function InformeForm({ informe, onDone, onCancel }) {
             <option value="">Seleccione un proyecto</option>
             {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}{p.cliente ? ` — ${p.cliente}` : ""}</option>)}
           </select>
+          {!informe && <NotaProyectoEnCurso enCurso={enCurso} valor={form.proyecto} />}
         </div>
         <div>
           <label className={label}>Fecha del servicio</label>
