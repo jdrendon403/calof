@@ -92,3 +92,50 @@ export const cuadrillas = {
   stop:         (id)           => client.post(`/cuadrillas/${id}/stop/`).then((r) => r.data),
   current:      (id)           => client.get(`/cuadrillas/${id}/current/`).then((r) => r.data),
 };
+
+// ── Campo: novedades, insumos, informes, fotos y avisos ──────────────────────
+const multipart = { headers: { "Content-Type": "multipart/form-data" } };
+
+function recurso(base) {
+  return {
+    list:   (params)   => client.get(`/${base}/`, { params }).then((r) => r.data),
+    get:    (id)       => client.get(`/${base}/${id}/`).then((r) => r.data),
+    create: (data)     => client.post(`/${base}/`, data).then((r) => r.data),
+    update: (id, data) => client.patch(`/${base}/${id}/`, data).then((r) => r.data),
+    delete: (id)       => client.delete(`/${base}/${id}/`),
+    accion: (id, nombre, data = {}) => client.post(`/${base}/${id}/${nombre}/`, data).then((r) => r.data),
+  };
+}
+
+export const campo = {
+  proyectos: () => client.get("/campo/proyectos/").then((r) => r.data),
+};
+export const novedades = recurso("novedades");
+export const insumos = recurso("insumos");
+export const informes = {
+  ...recurso("informes"),
+  sugerirPersonal: (proyecto, fecha) =>
+    client.get("/informes/sugerir-personal/", { params: { proyecto, fecha } }).then((r) => r.data),
+  guardarFirma: (id, blob) => {
+    const fd = new FormData();
+    fd.append("imagen", blob, "firma.png");
+    return client.post(`/informes/${id}/firma/`, fd, multipart).then((r) => r.data);
+  },
+  borrarFirma: (id) => client.delete(`/informes/${id}/firma/`).then((r) => r.data),
+};
+export const fotos = {
+  // tipo: "novedad" | "solicitud" | "informe"
+  upload: (tipo, padreId, blob, descripcion = "") => {
+    const fd = new FormData();
+    fd.append(tipo, padreId);
+    fd.append("archivo", blob, "foto.jpg");
+    fd.append("descripcion", descripcion);
+    return client.post("/fotos/", fd, multipart).then((r) => r.data);
+  },
+  delete: (id) => client.delete(`/fotos/${id}/`),
+};
+export const notificaciones = {
+  list:        ()    => client.get("/notificaciones/").then((r) => r.data),
+  noLeidas:    ()    => client.get("/notificaciones/no-leidas/").then((r) => r.data.total),
+  marcarLeidas: (ids) => client.post("/notificaciones/marcar-leidas/", ids ? { ids } : {}).then((r) => r.data),
+};

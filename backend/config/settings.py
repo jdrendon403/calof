@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "timetracker",
     "reports",
     "cuadrillas",
+    "campo",
 ]
 
 MIDDLEWARE = [
@@ -104,6 +105,13 @@ USE_TZ = True
 # Static files
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Archivos subidos (fotos, firmas, PDF de informes). No se publican: se entregan con
+# enlaces firmados desde /api/archivos/<token>/ (ver campo/archivos.py).
+MEDIA_ROOT = BASE_DIR / "media"
+# En producción nginx entrega el archivo (X-Accel-Redirect a /protected/) tras validar el enlace.
+MEDIA_X_ACCEL = os.environ.get("MEDIA_X_ACCEL", "0") == "1"
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

@@ -16,17 +16,20 @@ calof/
 │   ├── timetracker/  # App: modelo TimeEntry, tareas Celery
 │   ├── reports/      # App: endpoint de liquidación
 │   ├── cuadrillas/   # App: modelo Cuadrilla, servicios de trabajo colectivo
+│   ├── campo/        # App: novedades, insumos, informes de servicio, fotos, avisos, PDF
 │   ├── manage.py
 │   └── requirements.txt
 ├── frontend/         # React SPA
 │   ├── src/
 │   │   ├── api/        # client.js (axios + interceptors)
 │   │   ├── context/    # AuthContext, TimeContext
-│   │   ├── pages/      # LoginView, DashboardOperario, DashboardLider, AdminPanel
-│   │   ├── components/ # Layout, CuadrillaManager
-│   │   └── utils/      # time.js (minutesToHHMM)
+│   │   ├── pages/      # LoginView, DashboardOperario, DashboardLider, AdminPanel, CampoPage
+│   │   │   └── campo/  # NovedadesView, InsumosView, InformesView, InformeForm, common.jsx
+│   │   ├── components/ # Layout, CuadrillaManager, NotificationBell, PhotoPicker, PhotoGallery, SignaturePad, StatusBadge
+│   │   └── utils/      # time.js (minutesToHHMM), image.js (compressImage), format.js (errorMessage, fechas)
 │   ├── package.json
 │   └── vite.config.js
+├── scripts/          # respaldo.sh (cron diario 2:30 a. m.: pg_dump + fotos, retención 14 días en ~/respaldos)
 └── docker-compose.yml
 ```
 
@@ -89,7 +92,19 @@ Cuadrilla
   - miembros (M2M → Usuario)
   - activa (BooleanField, default=True)
   - fecha_creacion (DateTimeField, auto)
+
+Novedad          [campo]  autor, proyecto (null=general), categoria: SEGURIDAD|DANO_FALLA|RETRASO|PERSONAL|OTRA,
+                          titulo, descripcion, fecha_hecho, estado: ABIERTA → ATENDIDA, respuesta, atendida_por/en
+SolicitudInsumo  [campo]  autor, proyecto, detalle (texto libre), fecha_requerida,
+                          estado: PENDIENTE → APROBADA|RECHAZADA, APROBADA → ENTREGADA, comentario, gestionada_por/en
+InformeServicio  [campo]  consecutivo (INF-AAAA-NNNN, al aprobar), autor, proyecto, fecha_servicio, ubicacion,
+                          actividades, observaciones, participantes (M2M), firma_nombre/cargo/imagen,
+                          estado: BORRADOR|DEVUELTO → ENVIADO → APROBADO|DEVUELTO, comentario_revision, pdf
+Foto             [campo]  archivo (JPEG ≤1600 px, sin EXIF), miniatura (400 px), descripcion,
+                          FK a exactamente uno de novedad | solicitud | informe (CheckConstraint)
+Notificacion     [campo]  destinatario, tipo, texto, enlace (ruta del frontend), leida
 ```
+Los `autor` usan `SET_NULL`: borrar un usuario no borra sus reportes ni informes.
 
 ---
 
@@ -133,6 +148,18 @@ GET    /api/reports/settlement/?period=week|month
        → incluye entradas activas (hora_fin=null) usando now() como cierre temporal
        → responde: { por_usuario: [{nombre_completo, total_minutos}], por_proyecto: [...] }
 
+# Campo (filtros en listas: ?estado=A,B  ?proyecto=id  ?mias=1  ?categoria= en novedades)
+GET|POST          /api/novedades/            POST /api/novedades/{id}/atender/  {respuesta}
+GET|POST          /api/insumos/              POST /api/insumos/{id}/aprobar|rechazar|entregar/  {comentario}
+GET|POST          /api/informes/             POST /api/informes/{id}/enviar|aprobar|devolver/  {comentario}
+POST|DELETE       /api/informes/{id}/firma/  (multipart: imagen PNG)
+GET    /api/informes/sugerir-personal/?proyecto=&fecha=AAAA-MM-DD  → [{usuario_id, nombre, minutos}] desde TimeEntry
+GET|PATCH|DELETE  /api/{novedades|insumos|informes}/{id}/   ← autor solo en estado editable; admin siempre
+POST   /api/fotos/  (multipart: archivo, descripcion, novedad|solicitud|informe)   PATCH|DELETE /api/fotos/{id}/
+GET    /api/notificaciones/   GET /api/notificaciones/no-leidas/   POST /api/notificaciones/marcar-leidas/ {ids?}
+GET    /api/campo/proyectos/  → proyectos donde el usuario puede reportar
+GET    /api/archivos/{token}/ → archivo privado (enlace firmado, 12 h; sin JWT porque <img> no lo envía)
+
 # Docs
 GET    /api/docs/                → Redoc
 GET    /api/schema/              → OpenAPI
@@ -158,6 +185,15 @@ GET    /admin/                   → Django Admin
 **Permission classes del backend:** `IsAdminUser`, `IsProjectLeader`, `IsProjectLeaderOrReadOnly`
 
 **Operario** solo ve proyectos a los que está asignado (filtrado en queryset).
+
+### Campo (novedades, insumos, informes) — reglas en `campo/services.py`
+- **Visibilidad** (`filtrar_visibles`): Operario → lo propio (+ informes donde es participante). Líder → lo propio + lo de
+  `proyectos_liderados` (asignado vía Assignment o líder de una cuadrilla del proyecto). Admin → todo.
+- **Gestionar** (`puede_gestionar`: atender/aprobar/rechazar/entregar/devolver): Admin siempre; Líder en sus proyectos,
+  **nunca lo propio**.
+- **Crear**: solo en `proyectos_permitidos` (operario: asignados; líder: liderados; admin: todos).
+- **Avisos** (`destinatarios`): al crear/enviar → líderes del proyecto + todos los ADMIN (sin proyecto: solo ADMIN),
+  excluyendo al autor. Al cambiar estado → el autor.
 
 ---
 
@@ -206,6 +242,7 @@ Lógica: busca `TimeEntry` donde `hora_fin=null` → asigna `hora_fin=timezone.n
 | `/operario` | DashboardOperario | OPERARIO, LIDER, ADMIN |
 | `/lider` | DashboardLider | LIDER, ADMIN |
 | `/admin` | AdminPanel | ADMIN |
+| `/campo/novedades\|insumos\|informes` | CampoPage | todos (`?id=N` abre y resalta un elemento) |
 | `/` | RoleRedirect | redirige a `/operario` (Tiempos) para todos los roles |
 
 **PrivateRoute:** bloquea acceso sin token; valida rol antes de renderizar.
@@ -237,6 +274,9 @@ Lógica: busca `TimeEntry` donde `hora_fin=null` → asigna `hora_fin=timezone.n
 | `DashboardLider.jsx` | Liquidación, gráfica (polling 30s), proyectos, cuadrillas, registros |
 | `CuadrillaManager.jsx` | CRUD cuadrillas, gestión de miembros (usado dentro de DashboardLider) |
 | `AdminPanel.jsx` | CRUD usuarios |
+| `NotificationBell.jsx` | Campana en Layout; polling de `/no-leidas/` cada 60 s |
+| `PhotoPicker.jsx` | Selección + compresión en navegador; `uploadPending()` sube tras crear el elemento |
+| `SignaturePad.jsx` | Firma táctil en canvas → PNG |
 
 ---
 
@@ -276,6 +316,14 @@ ALLOWED_HOSTS=localhost,127.0.0.1,web
 | `frontend` | Dockerfile frontend | 3000 | web |
 
 El backend corre con usuario no-root (`appuser`) para evitar el warning de Celery.
+
+### Archivos subidos (volumen `media_data`)
+- Montado en `web` y `celery_worker` en `/app/backend/media` (MEDIA_ROOT) y en `frontend` en `/srv/media` (solo lectura).
+- `Dockerfile.prod` crea `media/.keep`: así Docker copia el dueño `appuser` al volumen nuevo. **No montar el volumen en
+  `/media` de nginx**: esa carpeta existe en la imagen y la llena con cdrom/floppy/usb de root.
+- Django valida el enlace firmado y responde `X-Accel-Redirect: /protected/<ruta>` (`MEDIA_X_ACCEL=1`);
+  nginx lo sirve desde `location /protected/ { internal; }`. `client_max_body_size 15m`.
+- PDF del informe: `campo/pdf.py` (reportlab, fuentes Montserrat y logo en `campo/assets/`), generado al aprobar.
 `celery_beat` usa `--schedule=/tmp/celerybeat-schedule` para evitar conflictos de permisos con el volumen montado.
 
 ### Variables de entorno relevantes
@@ -316,6 +364,7 @@ cd backend && python manage.py test
 |------|--------|-------------|
 | MVP | ✅ | Web con gestión de tiempos básica |
 | Cuadrillas | ✅ | Trabajo colectivo coordinado por cuadrillas |
+| Campo | ✅ | Novedades, pedidos de insumos, informes de servicio con fotos, firma y PDF; avisos in-app |
 | Fase 2 | Pendiente | Liquidación avanzada + exportar PDF/Excel |
 | Fase 3 | Pendiente | App móvil nativa (Android/iOS) |
 

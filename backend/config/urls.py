@@ -24,6 +24,7 @@ urlpatterns = [
     path("api/time/", include("timetracker.urls")),
     path("api/reports/settlement/", reports_views.settlement),
     path("api/cuadrillas/", include("cuadrillas.urls")),
+    path("api/", include("campo.urls")),
     path("api/schema/", spectacular_view, name="schema"),
     path("api/docs/", spectacular_redoc_view),
 ]

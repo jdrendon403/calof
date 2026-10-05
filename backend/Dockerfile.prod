@@ -14,7 +14,10 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
 COPY . /app
 
+# media/: fotos y PDF (volumen media_data). Con .keep la carpeta no queda vacía y Docker copia
+# su dueño (appuser) al volumen nuevo; si no, el volumen queda de root y no se puede escribir.
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
+    && mkdir -p /app/backend/media && touch /app/backend/media/.keep \
     && chown -R appuser:appgroup /app
 
 USER appuser

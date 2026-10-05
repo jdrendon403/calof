@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/IncontrolLogo.png";
 import ChangePasswordModal from "./ChangePasswordModal";
+import NotificationBell from "./NotificationBell";
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -30,6 +31,14 @@ export default function Layout() {
                 Tiempos
               </NavLink>
             )}
+            <NavLink
+              to="/campo"
+              className={({ isActive }) =>
+                isActive ? "rounded px-3 py-1.5 bg-slate-700 text-white" : "rounded px-3 py-1.5 text-slate-700 hover:bg-slate-100"
+              }
+            >
+              Campo
+            </NavLink>
             {(user?.rol === "LIDER" || user?.rol === "ADMIN") && (
               <NavLink
                 to="/lider"
@@ -50,6 +59,7 @@ export default function Layout() {
                 Usuarios
               </NavLink>
             )}
+            <NotificationBell />
             <span className="px-2 py-1 font-normal text-brand-text">
               {user?.first_name && user?.last_name
                 ? `${user.first_name} ${user.last_name}`

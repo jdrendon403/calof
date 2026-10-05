@@ -4,6 +4,7 @@ import LoginView from "./pages/LoginView";
 import DashboardOperario from "./pages/DashboardOperario";
 import DashboardLider from "./pages/DashboardLider";
 import AdminPanel from "./pages/AdminPanel";
+import CampoPage from "./pages/CampoPage";
 import Layout from "./components/Layout";
 
 function PrivateRoute({ children, allowedRoles }) {
@@ -41,6 +42,7 @@ export default function App() {
             </PrivateRoute>
           }
         />
+        <Route path="campo/*" element={<CampoPage />} />
         <Route
           path="lider"
           element={
